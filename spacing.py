@@ -27,16 +27,16 @@ parser = argparse.ArgumentParser(description='Korean Autospacing Trainer')
 
 def spacing(sent):
     # 사전 파일 로딩
-    w2idx, idx2w = load_vocab('./TrainKoSpacing/model/w2idx.dic')
+    w2idx, idx2w = load_vocab('model/w2idx.dic')
     # 임베딩 파일 로딩
-    weights = load_embedding('./TrainKoSpacing/model/kospacing_wv.np')
+    weights = load_embedding('model/kospacing_wv.np')
     vocab_size = weights.shape[0]
     embed_dim = weights.shape[1]
     model = pick_model('kospacing', 200, vocab_size, embed_dim, 200)
 
     # model.collect_params().initialize(mx.init.Xavier(), ctx=mx.cpu(0))
     # model.embedding.weight.set_data(weights)
-    model.load_parameters('./TrainKoSpacing/model/kospacing.params', ctx=mx.cpu(0))
+    model.load_parameters('model/kospacing.params', ctx=mx.cpu(0))
     predictor = pred_spacing(model, w2idx)
 
     return predictor.get_spaced_sent(sent, 200)
