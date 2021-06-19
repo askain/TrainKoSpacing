@@ -3,4 +3,5 @@ trainlstm.py
 resources/*
 */__pycache__/*
 .vscode/
-
+outputs
+mycorpus

@@ -1,18 +1,3 @@
-# coding=utf-8
-# Copyright 2020 Heewon Jeon. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import argparse
 import bz2
 import logging
@@ -23,8 +8,6 @@ try:
     from functools import lru_cache
 except ImportError:
     from backports.functools_lru_cache import lru_cache
-
-from timeit import default_timer as timer
 
 import gluonnlp as nlp
 import mxnet as mx
@@ -37,125 +20,26 @@ from tqdm import tqdm
 from utils.embedding_maker import (encoding_and_padding, load_embedding,
                                    load_vocab)
 
-logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
-logger = logging.getLogger()
-
-parser = argparse.ArgumentParser(description='Korean Autospacing Trainer')
-parser.add_argument('--num-epoch',
-                    type=int,
-                    default=5,
-                    help='number of iterations to train (default: 5)')
-
-parser.add_argument('--n-hidden',
-                    type=int,
-                    default=200,
-                    help='GRU hidden size (default: 200)')
-
-parser.add_argument('--max-seq-len',
-                    type=int,
-                    default=200,
-                    help='max sentence length on input (default: 200)')
-
-parser.add_argument('--num-gpus',
-                    type=int,
-                    default=1,
-                    help='number of gpus (default: 1)')
-
-parser.add_argument('--vocab-file',
-                    type=str,
-                    default='model/w2idx.dic',
-                    help='vocabarary file (default: model/w2idx.dic)')
-
-parser.add_argument(
-    '--embedding-file',
-    type=str,
-    default='model/kospacing_wv.np',
-    help='embedding matrix file (default: model/kospacing_wv.np)')
-
-parser.add_argument('--train',
-                    action='store_true',
-                    default=False,
-                    help='do trainig (default: False)')
-
-parser.add_argument(
-    '--model-file',
-    type=str,
-    default='kospacing_wv.mdl',
-    help='output object from Word2Vec() (default: kospacing_wv.mdl)')
-
-parser.add_argument('--train-samp-ratio',
-                    type=float,
-                    default=0.50,
-                    help='random train sample ration (default: 0.50)')
-
-parser.add_argument('--model-prefix',
-                    type=str,
-                    default='kospacing',
-                    help='prefix of output model file (default: kospacing)')
-
-parser.add_argument('--model-params',
-                    type=str,
-                    default='model/kospacing.params',
-                    help='model params file (default: model/kospacing.params)')
-
-parser.add_argument('--test',
-                    action='store_true',
-                    default=False,
-                    help='eval train set (default: False)')
-
-parser.add_argument('--batch_size',
-                    type=int,
-                    default=100,
-                    help='train batch size')
-
-parser.add_argument('--test_batch_size',
-                    type=int,
-                    default=100,
-                    help='test batch size')
-
-parser.add_argument('--n_workers',
-                    type=int,
-                    default=10,
-                    help='number of dataloader workers')
-
-parser.add_argument('--train_data',
-                    type=str,
-                    default='data/UCorpus_spacing_train.txt.bz2',
-                    help='bziped train data')
-
-parser.add_argument('--test_data',
-                    type=str,
-                    default='data/UCorpus_spacing_test.txt.bz2',
-                    help='bziped test data')
-
-parser.add_argument('--model_type',
-                    type=str,
-                    default='kospacing',
-                    help='kospacing or kospacing2')
-
-parser.add_argument('--outputs',
-                    type=str,
-                    default='outputs',
-                    help='directory to save log and model params')
-
-opt = parser.parse_args()
-
-nlp.utils.mkdir(opt.outputs)
-
-fileHandler = logging.FileHandler(opt.outputs + '/' + 'log.log')
-fileHandler.setFormatter(logFormatter)
-logger.addHandler(fileHandler)
-
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-
-logger.setLevel(logging.DEBUG)
-logger.info(opt)
-
-GPU_COUNT = opt.num_gpus
+GPU_COUNT = 1
 ctx = [mx.gpu(i) for i in range(GPU_COUNT)]
 
+parser = argparse.ArgumentParser(description='Korean Autospacing Trainer')
+
+def spacing(sent):
+    # 사전 파일 로딩
+    w2idx, idx2w = load_vocab('./TrainKoSpacing/model/w2idx.dic')
+    # 임베딩 파일 로딩
+    weights = load_embedding('./TrainKoSpacing/model/kospacing_wv.np')
+    vocab_size = weights.shape[0]
+    embed_dim = weights.shape[1]
+    model = pick_model('kospacing', 200, vocab_size, embed_dim, 200)
+
+    # model.collect_params().initialize(mx.init.Xavier(), ctx=mx.cpu(0))
+    # model.embedding.weight.set_data(weights)
+    model.load_parameters('./TrainKoSpacing/model/kospacing.params', ctx=mx.cpu(0))
+    predictor = pred_spacing(model, w2idx)
+
+    return predictor.get_spaced_sent(sent, 200)
 
 # Model class
 class korean_autospacing_base(gluon.HybridBlock):
@@ -583,45 +467,6 @@ def make_input_data(inputs,
         return (train_generator)
 
 
-if opt.train:
-    # 사전 파일 로딩
-    w2idx, idx2w = load_vocab(opt.vocab_file)
-    # 임베딩 파일 로딩
-    weights = load_embedding(opt.embedding_file)
-    vocab_size = weights.shape[0]
-    embed_dim = weights.shape[1]
-
-    train_generator, valid_generator = make_input_data(
-        opt.train_data,
-        train_ratio=0.95,
-        sampling=opt.train_samp_ratio,
-        make_lag_set=True,
-        batch_size=opt.batch_size)
-
-    test_generator = make_input_data(opt.test_data,
-                                     sampling=1,
-                                     train_ratio=1,
-                                     make_lag_set=True,
-                                     batch_size=opt.test_batch_size)
-
-    model, loss, trainer = model_init(n_hidden=opt.n_hidden,
-                                      vocab_size=vocab_size,
-                                      embed_dim=embed_dim,
-                                      max_seq_length=opt.max_seq_len,
-                                      ctx=ctx)
-    logger.info('start training!')
-    train(epochs=opt.num_epoch,
-          tr_data_iterator=train_generator,
-          te_data_iterator=test_generator,
-          va_data_iterator=valid_generator,
-          model=model,
-          loss=loss,
-          trainer=trainer,
-          pad_idx=w2idx['__PAD__'],
-          ctx=ctx,
-          mdl_desc=opt.model_prefix)
-
-
 class pred_spacing:
     def __init__(self, model, w2idx):
         self.model = model
@@ -629,7 +474,7 @@ class pred_spacing:
         self.pattern = re.compile(r'\s+')
 
     @lru_cache(maxsize=None)
-    def get_spaced_sent(self, raw_sent):
+    def get_spaced_sent(self, raw_sent, max_seq_len):
         raw_sent_ = "«" + raw_sent + "»"
         raw_sent_ = raw_sent_.replace(' ', '^')
         sents_in = [
@@ -637,7 +482,7 @@ class pred_spacing:
         ]
         mat_in = encoding_and_padding(word2idx_dic=self.w2idx,
                                       sequences=sents_in,
-                                      maxlen=opt.max_seq_len,
+                                      maxlen=max_seq_len,
                                       padding='post',
                                       truncating='post')
         mat_in = mx.nd.array(mat_in, ctx=mx.cpu(0))
@@ -659,53 +504,3 @@ class pred_spacing:
         subs = subs.replace('«', '')
         subs = subs.replace('»', '')
         return subs
-
-
-if not opt.train and not opt.test:
-    # 사전 파일 로딩
-    w2idx, idx2w = load_vocab(opt.vocab_file)
-    # 임베딩 파일 로딩
-    weights = load_embedding(opt.embedding_file)
-    vocab_size = weights.shape[0]
-    embed_dim = weights.shape[1]
-    model = pick_model(opt.model_type, opt.n_hidden, vocab_size, embed_dim, opt.max_seq_len)
-
-    # model.collect_params().initialize(mx.init.Xavier(), ctx=mx.cpu(0))
-    # model.embedding.weight.set_data(weights)
-    model.load_parameters(opt.model_params, ctx=mx.cpu(0))
-    predictor = pred_spacing(model, w2idx)
-
-    while 1:
-        sent = input("sent > ")
-        print(sent)
-        start = timer()
-        spaced = predictor.get_spaced_sent(sent)
-        end = timer()
-        print("spaced sent[{:03.2f}sec/sent]  > {}".format(end - start, spaced))
-
-if not opt.train and opt.test:
-    logger.info("calculate accuracy!")
-    # 사전 파일 로딩
-    w2idx, idx2w = load_vocab(opt.vocab_file)
-    # 임베딩 파일 로딩
-    weights = load_embedding(opt.embedding_file)
-    vocab_size = weights.shape[0]
-    embed_dim = weights.shape[1]
-
-    model = pick_model(opt.model_type, opt.n_hidden, vocab_size, embed_dim, opt.max_seq_len)
-
-    # model.initialize(ctx=ctx[0] if isinstance(ctx, list) else mx.gpu(0))
-    model.load_parameters(opt.model_params,
-                          ctx=ctx[0] if isinstance(ctx, list) else mx.gpu(0))
-    valid_generator = make_input_data(opt.test_data,
-                                      sampling=1,
-                                      train_ratio=1,
-                                      make_lag_set=True,
-                                      batch_size=100)
-    valid_acc = evaluate_accuracy(
-        valid_generator,
-        model,
-        w2idx['__PAD__'],
-        ctx=ctx[0] if isinstance(ctx, list) else mx.gpu(0),
-        n=30000)
-    logger.info('valid accuracy : {}'.format(valid_acc))
