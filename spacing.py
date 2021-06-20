@@ -15,26 +15,17 @@ from mxnet.gluon import nn, rnn
 from utils.embedding_maker import (encoding_and_padding, load_embedding,
                                    load_vocab)
 
-GPU_COUNT = 1
-ctx = [mx.gpu(i) for i in range(GPU_COUNT)]
-
-parser = argparse.ArgumentParser(description='Korean Autospacing Trainer')
+MAX_LEN = 198
 
 def spacing(sent):
-    # 사전 파일 로딩
-    w2idx, idx2w = load_vocab('model/w2idx.dic')
-    # 임베딩 파일 로딩
-    weights = load_embedding('model/kospacing_wv.np')
-    vocab_size = weights.shape[0]
-    embed_dim = weights.shape[1]
-    model = pick_model('kospacing', 200, vocab_size, embed_dim, 200)
+    if len(sent) > MAX_LEN:
+        splitted_sent = [sent[y-MAX_LEN:y] for y in range(MAX_LEN, len(sent)+MAX_LEN, MAX_LEN)]
+        spaced_sent = ''.join([predictor.get_spaced_sent(ss)
+                               for ss in splitted_sent])
+    else:
+        spaced_sent = predictor.get_spaced_sent(sent)
+    return spaced_sent.strip()
 
-    # model.collect_params().initialize(mx.init.Xavier(), ctx=mx.cpu(0))
-    # model.embedding.weight.set_data(weights)
-    model.load_parameters('model/kospacing.params', ctx=mx.cpu(0))
-    predictor = pred_spacing(model, w2idx)
-
-    return predictor.get_spaced_sent(sent, 200)
 
 # Model class
 class korean_autospacing_base(gluon.HybridBlock):
@@ -236,6 +227,7 @@ class korean_autospacing2(gluon.HybridBlock):
         return (self.dense(fc1))
 
 
+
 def pick_model(model_nm, n_hidden, vocab_size, embed_dim, max_seq_length):
     if model_nm.lower() == 'kospacing':
         model = korean_autospacing_base(n_hidden=n_hidden,
@@ -259,15 +251,13 @@ class pred_spacing:
         self.pattern = re.compile(r'\s+')
 
     @lru_cache(maxsize=None)
-    def get_spaced_sent(self, raw_sent, max_seq_len):
+    def get_spaced_sent(self, raw_sent):
         raw_sent_ = "«" + raw_sent + "»"
         raw_sent_ = raw_sent_.replace(' ', '^')
-        sents_in = [
-            raw_sent_,
-        ]
+        sents_in = [raw_sent_,]
         mat_in = encoding_and_padding(word2idx_dic=self.w2idx,
                                       sequences=sents_in,
-                                      maxlen=max_seq_len,
+                                      maxlen=200,
                                       padding='post',
                                       truncating='post')
         mat_in = mx.nd.array(mat_in, ctx=mx.cpu(0))
@@ -289,3 +279,18 @@ class pred_spacing:
         subs = subs.replace('«', '')
         subs = subs.replace('»', '')
         return subs
+
+
+
+# 사전 파일 로딩
+w2idx, idx2w = load_vocab('model/w2idx.dic')
+# 임베딩 파일 로딩
+weights = load_embedding('model/kospacing_wv.np')
+vocab_size = weights.shape[0]
+embed_dim = weights.shape[1]
+model = pick_model('kospacing', 200, vocab_size, embed_dim, 200)
+
+# model.collect_params().initialize(mx.init.Xavier(), ctx=mx.cpu(0))
+# model.embedding.weight.set_data(weights)
+model.load_parameters('model/kospacing.params', ctx=mx.cpu(0))
+predictor = pred_spacing(model, w2idx)
