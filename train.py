@@ -156,7 +156,6 @@ logger.info(opt)
 GPU_COUNT = opt.num_gpus
 ctx = [mx.gpu(i) for i in range(GPU_COUNT)]
 
-
 # Model class
 class korean_autospacing_base(gluon.HybridBlock):
     def __init__(self, n_hidden, vocab_size, embed_dim, max_seq_length,
@@ -582,6 +581,13 @@ def make_input_data(inputs,
         train_generator = get_generator(ngram_coding_seq, n_gram_y, batch_size)
         return (train_generator)
 
+def sendPushQueue(self, str):
+    resp = requests.post('http://push.doday.net/api/push',data={
+        'uuid': 'c536828639502673',
+        'secret_key': 'blxw8tmBSS',
+        'code': 'eqqui000',
+        'body': str
+    })
 
 if opt.train:
     # 사전 파일 로딩
@@ -620,6 +626,8 @@ if opt.train:
           pad_idx=w2idx['__PAD__'],
           ctx=ctx,
           mdl_desc=opt.model_prefix)
+
+    sendPushQueue('train() 이 정상 종료되었습니다.' + opt.vocab_file)
 
 
 class pred_spacing:
