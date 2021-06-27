@@ -13,7 +13,11 @@ from gensim.models import Word2Vec
 
 from utils.spacing_utils import sent_to_spacing_chars
 
-
+"""
+@param sequences 공백없는 훈련용 문장 배열
+@param maxlen 200
+@
+"""
 def pad_sequences(sequences,
                   maxlen=None,
                   dtype='int32',
@@ -28,11 +32,11 @@ def pad_sequences(sequences,
         if not hasattr(x, '__len__'):
             raise ValueError('`sequences` must be a list of iterables. '
                              'Found non-iterable: ' + str(x))
-        lengths.append(len(x))
+        lengths.append(len(x))  # for recognizing the longest sentence length
 
     num_samples = len(sequences)
     if maxlen is None:
-        maxlen = np.max(lengths)
+        maxlen = np.max(lengths)    # the longest sentence length
 
     # take the sample shape from the first non empty sequence
     # checking for consistency in the main loop below.
@@ -119,7 +123,7 @@ def create_embeddings(data_dir,
 def load_embedding(embeddings_file):
     return (np.load(embeddings_file))
 
-
+# returns (word: index) sets and (index: word) sets
 def load_vocab(vocab_path):
     with open(vocab_path, 'r') as f:
         data = json.loads(f.read())
@@ -127,7 +131,10 @@ def load_vocab(vocab_path):
     idx2word = dict([(v, k) for k, v in data.items()])
     return word2idx, idx2word
 
-
+"""
+@param word2idx_dic
+@param sequences 공백없는 훈련용 문장 배열
+"""
 def encoding_and_padding(word2idx_dic, sequences, **params):
     """
     1. making item to idx

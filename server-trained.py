@@ -18,7 +18,6 @@ class MyServer(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-type", "text/plain;charset=utf-8")
             self.end_headers()
-            print(spacing(body))
             self.wfile.write(bytes(spacing(body), "utf-8"))
 
     def do_POST(self):

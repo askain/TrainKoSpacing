@@ -355,7 +355,7 @@ class korean_autospacing2(gluon.HybridBlock):
         fc1 = self.dense_sh(grams)
         return (self.dense(fc1))
 
-
+# 정답 인코딩
 def y_encoding(n_grams, maxlen=200):
     # 입력된 문장으로 정답셋 인코딩함
     init_mat = np.zeros(shape=(len(n_grams), maxlen), dtype=np.int8)
@@ -514,10 +514,16 @@ def pre_processing(setences):
     char_list = [''.join(list(li)) for li in char_list]
     return char_list
 
-
+#
+# @param inputs file name string
+# @param train_ratio 0.95 ~ 1
+# @param sampling train sample ratio 0.50 ~ 1
+# @param make_lag_set: max 8 어절 씩 1어절 shift하여 학습 데이터 생성할지 여부
+# @param batch_size 100
 def make_input_data(inputs,
                     train_ratio,
                     sampling,
+                    w2idx,
                     make_lag_set=False,
                     batch_size=200):
     with bz2.open(inputs, 'rt') as f:
@@ -533,8 +539,9 @@ def make_input_data(inputs,
                                 int(len(processed_seq) * sampling),
                                 replace=False)
     processed_seq_samp = [processed_seq[i] for i in samp_idx]
-    sp_sents = [i.split('^') for i in processed_seq_samp]
+    sp_sents = [line.split('^') for line in processed_seq_samp]
 
+    # 어절 count should be less or equal 8
     sp_sents = list(filter(lambda x: len(x) >= 8, sp_sents))
 
     # max 8 어절 씩 1어절 shift하여 학습 데이터 생성
@@ -552,7 +559,7 @@ def make_input_data(inputs,
     logger.info(n_gram[0])
     logger.info(n_gram_y[0])
     # vocab file 로딩
-    w2idx, _ = load_vocab(opt.vocab_file)
+    #w2idx, _ = load_vocab(opt.vocab_file)
 
     # 학습셋을 만들기 위해 공백을 제거하고 문자 인덱스로 인코딩함
     logger.info('index eocoding!')
@@ -563,6 +570,7 @@ def make_input_data(inputs,
         padding='post',
         truncating='post')
     logger.info(ngram_coding_seq[0])
+
     if train_ratio < 1:
         # 학습셋 테스트셋 생성
         tr_idx, te_idx = split_train_set(ngram_coding_seq, train_ratio)
@@ -576,10 +584,10 @@ def make_input_data(inputs,
         # train generator
         train_generator = get_generator(x_train, y_train, batch_size)
         valid_generator = get_generator(x_test, y_test, 500)
-        return (train_generator, valid_generator)
+        return (train_generator, valid_generator)   # return validation test set by train_ratio
     else:
         train_generator = get_generator(ngram_coding_seq, n_gram_y, batch_size)
-        return (train_generator)
+        return (train_generator)    # return train test set only
 
 def sendPushQueue(self, str):
     resp = requests.post('http://push.doday.net/api/push',data={
@@ -589,6 +597,12 @@ def sendPushQueue(self, str):
         'body': str
     })
 
+"""
+1. vocab loading
+2. embedding
+3. prepare input data: encoding, padding
+
+"""
 if opt.train:
     # 사전 파일 로딩
     w2idx, idx2w = load_vocab(opt.vocab_file)
@@ -597,24 +611,28 @@ if opt.train:
     vocab_size = weights.shape[0]
     embed_dim = weights.shape[1]
 
+    # 5%를 validation data set 으로 분리하고, 문제와 정답으로 나누어 각각 문자를 숫자형식으로 인코딩 + 패딩 한다.
+    # generator 안에는 문제와 정답이 들어가 있음 
     train_generator, valid_generator = make_input_data(
-        opt.train_data,
-        train_ratio=0.95,
-        sampling=opt.train_samp_ratio,
-        make_lag_set=True,
-        batch_size=opt.batch_size)
+                                        opt.train_data,
+                                        train_ratio=0.95,
+                                        w2idx=w2idx,
+                                        sampling=opt.train_samp_ratio,
+                                        make_lag_set=True,
+                                        batch_size=opt.batch_size)
 
     test_generator = make_input_data(opt.test_data,
-                                     sampling=1,
-                                     train_ratio=1,
-                                     make_lag_set=True,
-                                     batch_size=opt.test_batch_size)
+                                        sampling=1,
+                                        train_ratio=1,
+                                        w2idx=w2idx,
+                                        make_lag_set=True,
+                                        batch_size=opt.test_batch_size)
 
     model, loss, trainer = model_init(n_hidden=opt.n_hidden,
-                                      vocab_size=vocab_size,
-                                      embed_dim=embed_dim,
-                                      max_seq_length=opt.max_seq_len,
-                                      ctx=ctx)
+                                        vocab_size=vocab_size,
+                                        embed_dim=embed_dim,
+                                        max_seq_length=opt.max_seq_len,
+                                        ctx=ctx)
     logger.info('start training!')
     train(epochs=opt.num_epoch,
           tr_data_iterator=train_generator,
@@ -708,6 +726,7 @@ if not opt.train and opt.test:
     valid_generator = make_input_data(opt.test_data,
                                       sampling=1,
                                       train_ratio=1,
+                                      w2idx=w2idx,
                                       make_lag_set=True,
                                       batch_size=100)
     valid_acc = evaluate_accuracy(
