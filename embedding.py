@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import argparse
-from utils.embedding_maker import create_embeddings
+from utils.embedding_maker import create_embeddings, update_full_model
 
 
 parser = argparse.ArgumentParser(description='Korean Autospacing Embedding Maker')
@@ -55,7 +55,45 @@ parser.add_argument('--model-dir', type=str, default='model',
 opt = parser.parse_args()
 
 if opt.train:
-    create_embeddings(opt.corpus_dir, opt.model_dir + '/' +
-                      opt.model_file, opt.model_dir + '/' + opt.numpy_wv,
-                      opt.model_dir + '/' + opt.w2idx, min_count=opt.min_count,
-                      workers=opt.num_worker, window=opt.window_size)
+    # 이상하게 w2v 는 그대로고 mdl 파일 용량이 줄어든다. 그런데 완전히 새로 만드는 용량보다 크긴함.. 그리고 여러번 실행하면 mdl 용량이 늘어남.
+    """
+    total 9348
+    drwxrwxr-x  2 seoul seoul      94  6월 27 18:40 ./
+    drwxrwxr-x 10 seoul seoul     310  6월 27 15:50 ../
+    -rw-rw-r--  1 seoul seoul 5426488  6월 27 14:47 kospacing.params
+    -rw-rw-r--  1 seoul seoul 2512441  6월 27 18:40 kospacing_wv.mdl <- The full model file (사실 이것만 있으면 돼)
+    -rw-rw-r--  1 seoul seoul 1595280  6월 27 18:40 kospacing_wv.np  <- The full model file 에서 파생된 vector file
+    -rw-rw-r--  1 seoul seoul   30342  6월 27 18:40 w2idx.dic        <- The full model file 에서 파생된 word & index file
+
+    total 8520
+    drwxrwxr-x  2 seoul seoul      94  6월 27 18:40 ./
+    drwxrwxr-x 10 seoul seoul     310  6월 27 15:50 ../
+    -rw-rw-r--  1 seoul seoul 5426488  6월 27 14:47 kospacing.params
+    -rw-rw-r--  1 seoul seoul 1665175  6월 27 18:46 kospacing_wv.mdl <- 이어서 실행했음에도 용량이 줄어들었다.
+    -rw-rw-r--  1 seoul seoul 1595328  6월 27 18:46 kospacing_wv.np  <- 약간 늘어남
+    -rw-rw-r--  1 seoul seoul   30342  6월 27 18:46 w2idx.dic
+
+    total 8520
+    drwxrwxr-x  2 seoul seoul      94  6월 27 18:40 ./
+    drwxrwxr-x 10 seoul seoul     310  6월 27 15:50 ../
+    -rw-rw-r--  1 seoul seoul 5426488  6월 27 14:47 kospacing.params
+    -rw-rw-r--  1 seoul seoul 1665974  6월 27 18:48 kospacing_wv.mdl <- 한번 더 실행하니 늘어났다. 
+    -rw-rw-r--  1 seoul seoul 1595328  6월 27 18:48 kospacing_wv.np  <- 같은 파일을 두번 실행하면 변화없음
+    -rw-rw-r--  1 seoul seoul   30342  6월 27 18:48 w2idx.dic
+    """
+    update_full_model(opt.corpus_dir,
+                        opt.model_dir + '/' + opt.model_file,
+                        opt.model_dir + '/' + opt.numpy_wv,
+                        opt.model_dir + '/' + opt.w2idx,
+                        min_count=opt.min_count,
+                        workers=opt.num_worker,
+                        window=opt.window_size)
+
+else:
+    create_embeddings(opt.corpus_dir,
+                        opt.model_dir + '/' + opt.model_file,
+                        opt.model_dir + '/' + opt.numpy_wv,
+                        opt.model_dir + '/' + opt.w2idx,
+                        min_count=opt.min_count,
+                        workers=opt.num_worker,
+                        window=opt.window_size)

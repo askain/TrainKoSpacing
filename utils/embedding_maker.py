@@ -73,12 +73,56 @@ def pad_sequences(sequences,
             raise ValueError('Padding type "%s" not understood' % padding)
     return x
 
+def get_sentence_generator(data_dir,
+                            splitc=' '):
+    class SentenceGenerator(object):
+        def __init__(self, dirname):
+            self.dirname = dirname
+
+        def __iter__(self):
+            print('print __iter__')
+            for fname in os.listdir(self.dirname):
+                print("processing~  '{}'".format(fname))
+                for line in bz2.open(os.path.join(self.dirname, fname), "rt"):
+                    yield sent_to_spacing_chars(line.strip()).split(splitc)
+        
+        def size(self):
+            print('print SentenceGenerator.size()')
+            num_lines = 0
+            for fname in os.listdir(self.dirname):
+                num_lines = sum(1 for _ in bz2.open(os.path.join(self.dirname, fname)))
+
+            return num_lines
+
+    return SentenceGenerator(data_dir)
+
+def update_full_model(data_dir,
+                      model_file,
+                      embeddings_file,
+                      vocab_file,
+                      **params):
+    
+            
+    
+    model = Word2Vec.load(model_file)
+
+    sentences = get_sentence_generator(data_dir)
+
+    print("model.corpus_count==" + str(model.corpus_count))
+    print("model.epochs==" + str(model.epochs))
+    model.train(sentences,
+                total_examples=model.corpus_count + sentences.size(),
+                epochs=model.epochs)
+
+    model.save(model_file)
+
+    overwrite_embedding_w2v_file(model, embeddings_file, vocab_file)
+
 
 def create_embeddings(data_dir,
                       model_file,
                       embeddings_file,
                       vocab_file,
-                      splitc=' ',
                       **params):
     """
     making embedding from files.
@@ -89,21 +133,16 @@ def create_embeddings(data_dir,
     :embeddings_file numpy object file path from Word2Vec()
     :vocab_file item to index json dictionary
     """
-    class SentenceGenerator(object):
-        def __init__(self, dirname):
-            self.dirname = dirname
 
-        def __iter__(self):
-            for fname in os.listdir(self.dirname):
-                print("processing~  '{}'".format(fname))
-                for line in bz2.open(os.path.join(self.dirname, fname), "rt"):
-                    yield sent_to_spacing_chars(line.strip()).split(splitc)
-
-    sentences = SentenceGenerator(data_dir)
+    sentences = get_sentence_generator(data_dir)
     
     model = Word2Vec(sentences, **params)
     model.save(model_file)
-    # model = Word2Vec.load("model_2.w2v")
+    
+    overwrite_embedding_w2v_file(model, embeddings_file, vocab_file)
+
+
+def overwrite_embedding_w2v_file(model, embeddings_file, vocab_file):
     weights = model.wv.vectors  # previously known as model.wv.syn0
     default_vec = np.mean(weights, axis=0, keepdims=True)
     padding_vec = np.zeros((1, weights.shape[1]))
@@ -123,6 +162,7 @@ def create_embeddings(data_dir,
 
 def load_embedding(embeddings_file):
     return (np.load(embeddings_file))
+
 
 # returns (word: index) sets and (index: word) sets
 def load_vocab(vocab_path):

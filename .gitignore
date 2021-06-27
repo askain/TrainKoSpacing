@@ -4,5 +4,4 @@ resources/*
 */__pycache__/*
 .vscode/
 outputs
-train_log_to
-mycorpus
+__pycache__
