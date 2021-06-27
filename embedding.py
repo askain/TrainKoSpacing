@@ -19,14 +19,14 @@ from utils.embedding_maker import create_embeddings
 
 parser = argparse.ArgumentParser(description='Korean Autospacing Embedding Maker')
 
-parser.add_argument('--num-iters', type=int, default=5,
-                    help='number of iterations to train (default: 5)')
+# parser.add_argument('--num-iters', type=int, default=5,
+#                     help='number of iterations to train (default: 5)')
 
 parser.add_argument('--min-count', type=int, default=100,
                     help='mininum word counts to filter (default: 100)')
 
-parser.add_argument('--embedding-size', type=int, default=100,
-                    help='embedding dimention size (default: 100)')
+# parser.add_argument('--embedding-size', type=int, default=100,
+#                     help='embedding dimention size (default: 100)')
 
 parser.add_argument('--num-worker', type=int, default=16,
                     help='number of thread (default: 16)')
@@ -58,5 +58,4 @@ if opt.train:
     create_embeddings(opt.corpus_dir, opt.model_dir + '/' +
                       opt.model_file, opt.model_dir + '/' + opt.numpy_wv,
                       opt.model_dir + '/' + opt.w2idx, min_count=opt.min_count,
-                      iter=opt.num_iters,
-                      size=opt.embedding_size, workers=opt.num_worker, window=opt.window_size)
+                      workers=opt.num_worker, window=opt.window_size)

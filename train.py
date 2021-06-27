@@ -17,6 +17,7 @@ import argparse
 import bz2
 import logging
 import re
+import requests
 import time
 
 try:
@@ -599,7 +600,7 @@ def make_input_data(inputs,
         train_generator = get_generator(ngram_coding_seq, n_gram_y, batch_size)
         return (train_generator)    # return train test set only
 
-def sendPushQueue(self, str):
+def sendPushQueue(str):
     resp = requests.post('http://push.doday.net/api/push',data={
         'uuid': 'c536828639502673',
         'secret_key': 'blxw8tmBSS',
@@ -655,7 +656,7 @@ if opt.train:
           ctx=ctx,
           mdl_desc=opt.model_prefix)
 
-    sendPushQueue('train() 이 정상 종료되었습니다.' + opt.vocab_file)
+    sendPushQueue(str='train() 이 정상 종료되었습니다.' + opt.vocab_file)
 
 
 class pred_spacing:

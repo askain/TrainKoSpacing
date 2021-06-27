@@ -100,11 +100,11 @@ def create_embeddings(data_dir,
                     yield sent_to_spacing_chars(line.strip()).split(splitc)
 
     sentences = SentenceGenerator(data_dir)
-
+    
     model = Word2Vec(sentences, **params)
     model.save(model_file)
     # model = Word2Vec.load("model_2.w2v")
-    weights = model.wv.syn0
+    weights = model.wv.vectors  # previously known as model.wv.syn0
     default_vec = np.mean(weights, axis=0, keepdims=True)
     padding_vec = np.zeros((1, weights.shape[1]))
 
@@ -113,7 +113,8 @@ def create_embeddings(data_dir,
 
     np.save(open(embeddings_file, 'wb'), weights_default)
 
-    vocab = dict([(k, v.index) for k, v in model.wv.vocab.items()])
+    #vocab = dict([(k, v.index) for k, v in model.wv.vocab.items()])
+    vocab = dict([(k, v) for k, v in model.wv.key_to_index.items()])    # model.wv.vocab is deprecated
     vocab['__ETC__'] = weights_default.shape[0] - 2
     vocab['__PAD__'] = weights_default.shape[0] - 1
     with open(vocab_file, 'w') as f:
