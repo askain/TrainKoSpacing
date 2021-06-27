@@ -61,6 +61,11 @@ parser.add_argument('--num-gpus',
                     default=1,
                     help='number of gpus (default: 1)')
 
+parser.add_argument('--num-cpus',
+                    type=int,
+                    default=1,
+                    help='number of cpus (default: 1)')
+
 parser.add_argument('--vocab-file',
                     type=str,
                     default='model/w2idx.dic',
@@ -154,7 +159,12 @@ logger.setLevel(logging.DEBUG)
 logger.info(opt)
 
 GPU_COUNT = opt.num_gpus
-ctx = [mx.gpu(i) for i in range(GPU_COUNT)]
+CPU_COUNT = opt.num_cpus
+if opt.num_gpus > 0:
+    #print 'GPU_COUNT==' + GPU_COUNT
+    ctx = [mx.gpu(i) for i in range(GPU_COUNT)]
+else:
+    ctx = [mx.cpu(i) for i in range(CPU_COUNT)]
 
 # Model class
 class korean_autospacing_base(gluon.HybridBlock):
