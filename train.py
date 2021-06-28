@@ -83,11 +83,11 @@ parser.add_argument('--train',
                     default=False,
                     help='do trainig (default: False)')
 
-parser.add_argument(
-    '--model-file',
-    type=str,
-    default='kospacing_wv.mdl',
-    help='output object from Word2Vec() (default: kospacing_wv.mdl)')
+# parser.add_argument(
+#     '--model-file',
+#     type=str,
+#     default='kospacing_wv2.mdl',
+#     help='output object from Word2Vec() (default: kospacing_wv.mdl)')
 
 parser.add_argument('--train-samp-ratio',
                     type=float,
@@ -101,7 +101,7 @@ parser.add_argument('--model-prefix',
 
 parser.add_argument('--model-params',
                     type=str,
-                    default='model/kospacing.params',
+                    default='model/kospacing2.params',
                     help='model params file (default: model/kospacing.params)')
 
 parser.add_argument('--test',

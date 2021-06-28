@@ -110,9 +110,18 @@ def update_full_model(data_dir,
 
     print("model.corpus_count==" + str(model.corpus_count))
     print("model.epochs==" + str(model.epochs))
+
+    # 아래 명령을 넣으면 total_examples 가 확 줄어든다;;;; 파일용량에는 변함이 없음
+    model.build_vocab(sentences, update=True)
+
     model.train(sentences,
-                total_examples=model.corpus_count + sentences.size(),
+                total_examples=(model.corpus_count + sentences.size()),
                 epochs=model.epochs)
+
+    # model.train(model.train(sentences, epochs=model.epochs, 
+    #         total_examples=model.corpus_count,
+    #         start_alpha=(model.min_alpha + (53/200 * (model.alpha - model.min_alpha)))
+
 
     model.save(model_file)
 
