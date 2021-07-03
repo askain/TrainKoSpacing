@@ -86,7 +86,7 @@ parser.add_argument('--train',
 # parser.add_argument(
 #     '--model-file',
 #     type=str,
-#     default='kospacing_wv2.mdl',
+#     default='kospacing_wv.mdl',
 #     help='output object from Word2Vec() (default: kospacing_wv.mdl)')
 
 parser.add_argument('--train-samp-ratio',
@@ -101,7 +101,7 @@ parser.add_argument('--model-prefix',
 
 parser.add_argument('--model-params',
                     type=str,
-                    default='model/kospacing2.params',
+                    default='model/kospacing.params',
                     help='model params file (default: model/kospacing.params)')
 
 parser.add_argument('--test',
@@ -166,6 +166,9 @@ if opt.num_gpus > 0:
     ctx = [mx.gpu(i) for i in range(GPU_COUNT)]
 else:
     ctx = [mx.cpu(i) for i in range(CPU_COUNT)]
+
+# Use GPU if one exists, else use CPU
+#ctx = mx.gpu() if mx.context.num_gpus() else mx.cpu()
 
 # Model class
 class korean_autospacing_base(gluon.HybridBlock):
@@ -414,6 +417,7 @@ def pick_model(model_nm, n_hidden, vocab_size, embed_dim, max_seq_length):
     return model
 
 
+# To make new model
 def model_init(n_hidden, vocab_size, embed_dim, max_seq_length, ctx):
     # 모형 인스턴스 생성 및 트래이너, loss 정의
     # n_hidden, vocab_size, embed_dim, max_seq_length
@@ -421,6 +425,20 @@ def model_init(n_hidden, vocab_size, embed_dim, max_seq_length, ctx):
     model.collect_params().initialize(mx.init.Xavier(), ctx=ctx)
     model.embedding.weight.set_data(weights)
     model.hybridize(static_alloc=True)
+
+    # 임베딩 영역 가중치 고정
+    model.embedding.collect_params().setattr('grad_req', 'null')
+    trainer = gluon.Trainer(model.collect_params(), 'rmsprop')
+    loss = gluon.loss.SigmoidBinaryCrossEntropyLoss(from_sigmoid=True)
+    loss.hybridize(static_alloc=True)
+    return (model, loss, trainer)
+
+# To resume model
+def model_resume(n_hidden, vocab_size, embed_dim, max_seq_length, ctx):
+    # 모형 인스턴스 생성 및 트래이너, loss 정의
+    # n_hidden, vocab_size, embed_dim, max_seq_length
+    model = pick_model(opt.model_type, n_hidden, vocab_size, embed_dim, max_seq_length)
+    model.load_parameters(opt.model_params, ctx=ctx)
     # 임베딩 영역 가중치 고정
     model.embedding.collect_params().setattr('grad_req', 'null')
     trainer = gluon.Trainer(model.collect_params(), 'rmsprop')
@@ -639,11 +657,18 @@ if opt.train:
                                         make_lag_set=True,
                                         batch_size=opt.test_batch_size)
 
-    model, loss, trainer = model_init(n_hidden=opt.n_hidden,
+    # model, loss, trainer = model_init(n_hidden=opt.n_hidden,
+    #                                     vocab_size=vocab_size,
+    #                                     embed_dim=embed_dim,
+    #                                     max_seq_length=opt.max_seq_len,
+    #                                     ctx=ctx)
+
+    model, loss, trainer = model_resume(n_hidden=opt.n_hidden,
                                         vocab_size=vocab_size,
                                         embed_dim=embed_dim,
                                         max_seq_length=opt.max_seq_len,
                                         ctx=ctx)
+
     logger.info('start training!')
     train(epochs=opt.num_epoch,
           tr_data_iterator=train_generator,
@@ -709,7 +734,7 @@ if not opt.train and not opt.test:
 
     # model.collect_params().initialize(mx.init.Xavier(), ctx=mx.cpu(0))
     # model.embedding.weight.set_data(weights)
-    model.load_parameters(opt.model_params, ctx=mx.cpu(0))
+    model.load_parameters(opt.model_params, ctx=mx.cpu(0)) # load the weights from the file we saved.
     predictor = pred_spacing(model, w2idx)
 
     while 1:
